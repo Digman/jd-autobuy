@@ -19,14 +19,11 @@ import os
 import time
 import json
 import random
-
-
 import argparse
-#from selenium import webdriver
-
-
 import sys
+
 reload(sys)
+
 sys.setdefaultencoding('utf-8')
 
 # get function name
@@ -63,6 +60,14 @@ def tag_val(tag, key=''):
         return txt.strip(' \t\r\n') if txt else ''
 
 
+def now():
+    return time.strftime("%H:%M:%S", time.localtime())
+
+
+def crid():
+    return str(int(time.time()))
+
+
 class JDWrapper(object):
     '''
     This class used to simulate login JD
@@ -85,28 +90,28 @@ class JDWrapper(object):
         self.login = 'https://passport.jd.com/uc/loginService'
         self.imag = 'https://authcode.jd.com/verify/image'
         self.auth = 'https://passport.jd.com/uc/showAuthCode'
+        self.submitOrder = 'https://marathon.jd.com/seckill/submitOrder.action?skuId={0}&vid={1}'
+        self.checkUrl = 'https://passport.jd.com/uc/qrCodeTicketValidation'
+        self.itemko = 'https://itemko.jd.com/itemShowBtn?skuId={0}&callback='
+        self.address = 'https://marathon.jd.com/async/getUsualAddressList.action?skuId={0}&yuyue='
         
         self.sess = requests.Session()
 
         self.headers = {
-            'User-Agent' : 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36',
+            'User-Agent' : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.81 Safari/537.36',
             'ContentType': 'text/html; charset=utf-8',
-            'Accept-Encoding':'gzip, deflate, sdch',
-            'Accept-Language':'zh-CN,zh;q=0.8',
-            'Connection' : 'keep-alive',
+            'Accept-Encoding': 'gzip, deflate, sdch',
+            'Accept-Language': 'zh-CN,zh;q=0.8',
+            'Connection': 'keep-alive',
+            'Pragma': 'no-cache',
+            'Cache-Control': 'no-cache',
+            'Upgrade-Insecure-Requests': '1'
         }
         
-        self.cookies = {
+        self.cookies = {}
 
-        }
+        self.cache = {}
 
-        '''
-        try:
-            self.browser = webdriver.PhantomJS('phantomjs.exe')
-        except Exception, e:
-            print 'Phantomjs initialize failed :', e
-            exit(1)
-        '''
         
     @staticmethod
     def print_json(resp_text):
@@ -192,94 +197,15 @@ class JDWrapper(object):
 
         return False
 
-    def _login_try(self):
-        """ login by username and password, but not working now.
-        
-        .. deprecated::
-            Use `login_by_QR`
-        """
-        # get login page
-        #resp = self.sess.get(self.home)
-        print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
-        print u'{0} > 登陆'.format(time.ctime())
 
-        try:
-            # 2016/09/17 PhantomJS can't login anymore
-            self.browser.get(self.home)
-            soup = bs4.BeautifulSoup(self.browser.page_source, "html.parser")
-            
-            # set cookies from PhantomJS
-            for cookie in self.browser.get_cookies():
-                self.sess.cookies[cookie['name']] = str(cookie['value'])
-
-            #for (k, v) in self.sess.cookies.items():
-            #    print '%s: %s' % (k, v)
-                
-            # response data hidden input == 9 ??. Changed 
-            inputs = soup.select('form#formlogin input[type=hidden]')
-            rand_name = inputs[-1]['name']
-            rand_data = inputs[-1]['value']
-            token = ''
-
-            for idx in range(len(inputs) - 1):
-                id = inputs[idx]['id']
-                va = inputs[idx]['value']
-                if   id == 'token':
-                    token = va
-                elif id == 'uuid':
-                    self.uuid = va
-                elif id == 'eid':
-                    self.eid = va
-                elif id == 'sessionId':
-                    self.fp = va
-            
-            auth_code = ''
-            if self.need_auth_code(self.usr_name):
-                auth_code = self.get_auth_code(self.uuid)    
-            else:
-                print u'无验证码登陆'
-            
-            login_data = {
-                '_t': token,
-                'authcode': auth_code,
-                'chkRememberMe': 'on',
-                'loginType': 'f',
-                'uuid': self.uuid,
-                'eid': self.eid,
-                'fp': self.fp,
-                'nloginpwd': self.usr_pwd,
-                'loginname': self.usr_name,
-                'loginpwd': self.usr_pwd,
-                rand_name : rand_data,
-            }
-            
-            login_succeed = self.login_once(login_data)
-            if login_succeed:
-                self.trackid = self.sess.cookies['TrackID']
-                print u'登陆成功 %s' % self.usr_name
-            else:        
-                print u'登陆失败 %s' % self.usr_name    
-
-            return login_succeed
-
-        except Exception, e:
-            print 'Exception:', e.message
-            raise
-        finally:
-            self.browser.quit()
-
-        return False
-    
     def checkLogin(self):
-        checkUrl = 'https://passport.jd.com/uc/qrCodeTicketValidation'
 
         try:
             print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
-            print u'{0} > 自动登录中... '.format(time.ctime())
+            print u'{0} > 自动登录中... '.format(now())
             with open('cookie', 'rb') as f:
-                cookies = requests.utils.cookiejar_from_dict(pickle.load(f))
-                resp = requests.get(checkUrl, cookies=cookies)
-
+                self.cookies = requests.utils.cookiejar_from_dict(pickle.load(f))
+                resp = requests.get(self.checkUrl, cookies=self.cookies)
                 if resp.status_code != requests.codes.OK:
                     print u'登录过期， 请重新登录！'
                     return False
@@ -300,7 +226,7 @@ class JDWrapper(object):
         # jd login by QR code
         try:
             print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
-            print u'{0} > 请打开京东手机客户端，准备扫码登陆:'.format(time.ctime())
+            print u'{0} > 请打开京东手机客户端，准备扫码登陆:'.format(now())
 
             urls = (
                 'https://passport.jd.com/new/login.aspx',
@@ -462,7 +388,7 @@ class JDWrapper(object):
         payload = {
             'type' : 'getstocks',
             'skuIds' : str(stock_id),
-            'area' : area_id or '1_72_2799_0', # area change as needed
+            'area' : area_id or '19_1655_4147_0', # area change as needed
         }
         
         try:
@@ -497,6 +423,7 @@ class JDWrapper(object):
             'price' : '',
             'stock' : '',
             'stockName': '',
+            'ko' : False,
         }
         
         try:
@@ -516,7 +443,11 @@ class JDWrapper(object):
             # cart link
             tags = soup.select('a#InitCartUrl')
             link = tags_val(tags, key='href')
-            
+
+            # good ko
+            btn = soup.select('a#choose-btn-ko')
+            good_data['ko'] = btn is not None and len(btn) > 0
+
             if link[:2] == '//': link = 'http:' + link
             good_data['link'] = link
         
@@ -531,11 +462,12 @@ class JDWrapper(object):
         #stock_str = u'有货' if good_data['stock'] == 33 else u'无货'
         
         print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
-        print u'{0} > 商品详情'.format(time.ctime())
+        print u'{0} > 商品详情'.format(now())
         print u'编号：{0}'.format(good_data['id'])
         print u'库存：{0}'.format(good_data['stockName'])
         print u'价格：{0}'.format(good_data['price'])
         print u'名称：{0}'.format(good_data['name'])
+        print u'抢购：{0}'.format(u'是' if good_data['ko'] else u'否')
         #print u'链接：{0}'.format(good_data['link'])
         
         return good_data
@@ -574,21 +506,25 @@ class JDWrapper(object):
         if good_data['stock'] != 33:
             # flush stock state
             while good_data['stock'] != 33 and options.flush:
-                print u'<%s> <%s>' % (good_data['stockName'], good_data['name'])
+                print u'%s: <%s> <%s>' % (now(), good_data['stockName'], good_data['name'])
                 time.sleep(options.wait / 1000.0)
                 good_data['stock'], good_data['stockName'] = self.good_stock(stock_id=options.good, area_id=options.area)
                 
-            # retry detail
-            #good_data = self.good_detail(options.good)
-            
 
         # failed 
         link = good_data['link']
         if good_data['stock'] != 33 or link == '':
             #print u'stock {0}, link {1}'.format(good_data['stock'], link)
-            return False
+            # return False
+            pass
 
         try:
+            # second kill
+            if good_data['ko']:
+                while not self.do_seckill(options) and options.flush:
+                    time.sleep(options.wait / 1000.0)
+                return True
+
             # change buy count
             if options.count != 1:
                 link = link.replace('pcount=1', 'pcount={0}'.format(options.count))
@@ -607,7 +543,7 @@ class JDWrapper(object):
                 return False
             
             print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
-            print u'{0} > 购买详情'.format(time.ctime())
+            print u'{0} > 购买详情'.format(now())
             print u'链接：{0}'.format(link)
             print u'结果：{0}'.format(tags_val(tag))
 
@@ -621,6 +557,128 @@ class JDWrapper(object):
             return self.order_info(options.submit)
 
         return False
+
+    def get_address(self, good_id):
+        if self.cache.has_key('address'):
+            return self.cache['address']
+        rs = self.sess.get(
+            self.address.format(good_id),
+            headers=self.headers,
+            cookies=self.cookies,
+        )
+        if rs.status_code == 200:
+            address = json.loads(rs.text)[0]
+            self.cache['address'] = address
+            return address
+        return {}
+
+    def check_seckill(self, good_id):
+        # get seckill url
+        rs = self.sess.get(
+            self.itemko.format(good_id),
+            headers=self.headers,
+            cookies=self.cookies,
+        )
+        if rs.status_code == 200:
+            url = json.loads(rs.text[1:-2])['url']
+            if not url:
+                return False
+            # fetch seckill content
+            rs = self.sess.get(
+                'http:' + url,
+                headers=self.headers,
+                cookies=self.cookies,
+            )
+            hasbtn = rs.text.find('id="order-submit"') > 0
+            if hasbtn:
+                return True
+
+        return False
+
+    def do_seckill(self, options):
+        succed = False
+        checked = self.check_seckill(options.good)
+        if not checked:
+            print u'获取抢购页面失败'
+            return succed
+
+        address = self.get_address(options.good)
+        if not address:
+            print u'获取常用地址失败'
+            return succed
+
+        payload = {
+            'orderParam.name': address['name'],
+            'orderParam.addressDetail': address['addressDetail'],
+            'orderParam.mobile': address['mobileWithXing'],
+            'orderParam.email': address['email'],
+            'orderParam.provinceId': address['provinceId'],
+            'orderParam.cityId': address['cityId'],
+            'orderParam.countyId': address['countyId'],
+            'orderParam.townId': address['townId'],
+            'orderParam.paymentType': '4',
+            'orderParam.password': '',
+            'orderParam.invoiceTitle': '4',
+            'orderParam.invoiceContent': '1',
+            'orderParam.invoiceCompanyName': '',
+            'orderParam.invoiceTaxpayerNO': '',
+            'orderParam.invoiceEmail': '',
+            'orderParam.invoicePhone': address['mobileWithXing'],
+            'orderParam.usualAddressId': address['id'],
+            'skuId': options.good,
+            'num': options.count,
+            'orderParam.codTimeType': '3',
+            'orderParam.provinceName': address['provinceName'],
+            'orderParam.cityName': address['provinceName'],
+            'orderParam.countyName': address['countyName'],
+            'orderParam.townName': address['townName'],
+            'orderParam.mobileKey': address['mobileKey'],
+            'eid': self.eid,
+            'fp': self.fp,
+            'addressMD5': address['md5'],
+            'yuyue': '',
+            'yuyueAddress': '0'
+        }
+        print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
+        print u'{0} > 订单信息'.format(now())
+        print u'收货人：{0} {1}'.format(
+            address['name'],
+            address['mobileWithXing']
+        )
+        print u'寄送至：{0}{1}{2} {3}'.format(
+            address['provinceName'],
+            address['cityName'],
+            address['countyName'],
+            address['addressDetail']
+        )
+
+        if not options.submit:
+            return True
+
+        resp = self.sess.post(
+            self.submitOrder.format(options.good, ''),
+            params=payload,
+            headers=self.headers,
+            cookies=self.cookies
+        )
+        if resp.status_code != 200:
+            print u'提交抢购失败，StatusCode={0}'.format(resp.status_code)
+            return succed
+
+        print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
+        print u'{0} > 抢购结果'.format(now())
+        if resp.text == 'price_Expire':
+            print u'您所抢购的商品优惠时间已过，请刷新重新提交订单'
+        elif resp.text == 'taxpayer_invalid':
+            print u'请填写准确的纳税人识别号或统一社会信用代码'
+        elif resp.text.find('koFail') > 0:
+            print u'很抱歉，抢购未成功({0})'.format(resp.text.replace('//', 'http://'))
+        else:
+            print resp.text
+            succed = True
+
+        return succed
+
 
     def buy_good_count(self, good_id, count):
         url = 'http://cart.jd.com/changeNum.action'
@@ -665,7 +723,7 @@ class JDWrapper(object):
             soup = bs4.BeautifulSoup(resp.text, "html.parser")
             
             print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
-            print u'{0} > 购物车明细'.format(time.ctime())
+            print u'{0} > 购物车明细'.format(now())
             print cart_header
             
             for item in soup.select('div.item-form'):
@@ -690,7 +748,7 @@ class JDWrapper(object):
     def order_info(self, submit=False):
         # get order info detail, and submit order
         print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
-        print u'{0} > 订单详情'.format(time.ctime())
+        print u'{0} > 订单详情'.format(now())
 
         try:
             order_url = 'http://trade.jd.com/shopping/order/getOrderInfo.action'
@@ -743,6 +801,10 @@ class JDWrapper(object):
                     if js['resultCode'] == '60017':
                         # 60017: 您多次提交过快，请稍后再试
                         time.sleep(1)
+                    elif js['resultCode'] == '60123':
+                        # 60123: 请输入支付密码
+                        print u'需要输入支付密码'
+                        return True
             else:
                 print u'请求失败. StatusCode:', rp.status_code
         
@@ -755,7 +817,7 @@ class JDWrapper(object):
 def main(options):
     # 
     jd = JDWrapper()
-    if not jd.checkLogin():
+    if not jd.checkLogin() or options.relogin:
         if not jd.login_by_QR():
             return
 
@@ -766,11 +828,7 @@ def main(options):
 if __name__ == '__main__':
     # help message
     parser = argparse.ArgumentParser(description='Simulate to login Jing Dong, and buy sepecified good')
-    #parser.add_argument('-u', '--username', 
-    #                    help='Jing Dong login user name', default='')
-    #parser.add_argument('-p', '--password', 
-    #                    help='Jing Dong login user password', default='')
-    parser.add_argument('-a', '--area', 
+    parser.add_argument('-a', '--area',
                         help='Area string, like: 1_72_2799_0 for Beijing', default='1_72_2799_0')    
     parser.add_argument('-g', '--good', 
                         help='Jing Dong good ID', default='')
@@ -785,22 +843,19 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--submit', 
                         action='store_true',
                         help='Submit the order to Jing Dong')
-                
+    parser.add_argument('-r', '--relogin',
+                        action='store_true',
+                        help='Relogin to Jing Dong')
+
     # example goods
-    hw_watch = '2567304'
     iphone_7 = '3133851'
-    
+
     options = parser.parse_args()
     print options
-  
+
     # for test
     if options.good == '':
         options.good = iphone_7
-    
-    '''
-    if options.password == '' or options.username == '':
-        print u'请输入用户名密码'
-        exit(1)
-    '''
+
+
     main(options)
-    
