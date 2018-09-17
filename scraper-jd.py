@@ -61,7 +61,9 @@ def tag_val(tag, key=''):
 
 
 def now():
-    return time.strftime("%H:%M:%S", time.localtime())
+    ct = time.time()
+    lt = time.localtime()
+    return time.strftime("%H:%M:%S", lt) + ('.%03d' % ((ct - long(ct)) * 1000))
 
 
 def crid():
@@ -826,36 +828,40 @@ def main(options):
 
 
 if __name__ == '__main__':
-    # help message
-    parser = argparse.ArgumentParser(description='Simulate to login Jing Dong, and buy sepecified good')
-    parser.add_argument('-a', '--area',
-                        help='Area string, like: 1_72_2799_0 for Beijing', default='1_72_2799_0')    
-    parser.add_argument('-g', '--good', 
-                        help='Jing Dong good ID', default='')
-    parser.add_argument('-c', '--count', type=int, 
-                        help='The count to buy', default=1)
-    parser.add_argument('-w', '--wait', 
-                        type=int, default=500,
-                        help='Flush time interval, unit MS')
-    parser.add_argument('-f', '--flush', 
-                        action='store_true', 
-                        help='Continue flash if good out of stock')
-    parser.add_argument('-s', '--submit', 
-                        action='store_true',
-                        help='Submit the order to Jing Dong')
-    parser.add_argument('-r', '--relogin',
-                        action='store_true',
-                        help='Relogin to Jing Dong')
+    try:
+        # help message
+        parser = argparse.ArgumentParser(description='Simulate to login Jing Dong, and buy sepecified good')
+        parser.add_argument('-a', '--area',
+                            help='Area string, like: 1_72_2799_0 for Beijing', default='1_72_2799_0')
+        parser.add_argument('-g', '--good',
+                            help='Jing Dong good ID', default='')
+        parser.add_argument('-c', '--count', type=int,
+                            help='The count to buy', default=1)
+        parser.add_argument('-w', '--wait',
+                            type=int, default=500,
+                            help='Flush time interval, unit MS')
+        parser.add_argument('-f', '--flush',
+                            action='store_true',
+                            help='Continue flash if good out of stock')
+        parser.add_argument('-s', '--submit',
+                            action='store_true',
+                            help='Submit the order to Jing Dong')
+        parser.add_argument('-r', '--relogin',
+                            action='store_true',
+                            help='Relogin to Jing Dong')
 
-    # example goods
-    iphone_7 = '3133851'
+        # example goods
+        iphone_7 = '3133851'
 
-    options = parser.parse_args()
-    print options
+        options = parser.parse_args()
+        print options
 
-    # for test
-    if options.good == '':
-        options.good = iphone_7
+        # for test
+        if options.good == '':
+            options.good = iphone_7
 
+        main(options)
 
-    main(options)
+    except KeyboardInterrupt:
+        print('Interrupted')
+        sys.exit(0)
