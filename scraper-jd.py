@@ -360,7 +360,7 @@ class JDWrapper(object):
                     print u'需要手动安全验证: {0}'.format(res['url'])
                     return False
                 else:
-                    print_json(res)
+                    self.print_json(res)
                     print u'登陆失败!!'
                     return False
             
