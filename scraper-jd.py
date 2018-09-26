@@ -677,7 +677,7 @@ class JDWrapper(object):
             print u'很抱歉，抢购未成功({0})'.format(resp.text.replace('//', 'http://'))
         else:
             url = resp.text.replace('//', 'http://')
-            print url
+            print u'查看抢购结果: {0}'.format(url)
             if resp.text.find('/success/') > 0:
                 if os.name == "nt":
                     # for windows
