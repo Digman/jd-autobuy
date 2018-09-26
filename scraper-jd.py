@@ -676,11 +676,21 @@ class JDWrapper(object):
         elif resp.text.find('koFail') > 0:
             print u'很抱歉，抢购未成功({0})'.format(resp.text.replace('//', 'http://'))
         else:
-            print resp.text
+            url = resp.text.replace('//', 'http://')
+            print url
+            if resp.text.find('/success/') > 0:
+                if os.name == "nt":
+                    # for windows
+                    os.system('start ' + url)
+                else:
+                    if os.uname()[0] == "Linux":
+                        # for linux platform
+                        os.system("eog " + url)
+                    else:
+                        # for Mac platform
+                        os.system("open " + url)
             succed = True
-
         return succed
-
 
     def buy_good_count(self, good_id, count):
         url = 'http://cart.jd.com/changeNum.action'
