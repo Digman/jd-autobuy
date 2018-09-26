@@ -657,7 +657,7 @@ class JDWrapper(object):
             address['name'],
             address['mobileWithXing']
         )
-        print u'寄送至：{0}{1}{2} {3}'.format(
+        print u'寄送至：{0}{1}{2}{3}'.format(
             address['provinceName'],
             address['cityName'],
             address['countyName'],
