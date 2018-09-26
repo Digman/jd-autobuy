@@ -70,6 +70,24 @@ def crid():
     return str(int(time.time()))
 
 
+def sys_open(file_url):
+    if os.name == "nt":
+        # for windows
+        os.system('start ' + file_url)
+    else:
+        if os.uname()[0] == "Linux":
+            # for linux platform
+            os.system("eog " + file_url)
+        else:
+            # for Mac platform
+            os.system("open " + file_url)
+
+
+def sys_close(file_url):
+    # only Mac platform
+    os.system("killall Preview")
+
+
 class JDWrapper(object):
     '''
     This class used to simulate login JD
@@ -277,16 +295,7 @@ class JDWrapper(object):
                     f.write(chunk)
             
             ## scan QR code with phone
-            if os.name == "nt": 
-                # for windows
-                os.system('start ' + image_file)
-            else:
-                if os.uname()[0] == "Linux":
-                    # for linux platform
-                    os.system("eog " + image_file)
-                else:
-                    # for Mac platform
-                    os.system("open " + image_file)
+            sys_open(image_file)
 
             # step 3: check scan result
             ## mush have
@@ -363,6 +372,7 @@ class JDWrapper(object):
             with open('cookie', 'wb') as f:
                 pickle.dump(self.cookies, f)
 
+            sys_close(image_file)
             print u'登陆成功'
             return True
         
@@ -679,16 +689,7 @@ class JDWrapper(object):
             url = resp.text.replace('//', 'http://')
             print u'查看抢购结果: {0}'.format(url)
             if resp.text.find('/success/') > 0:
-                if os.name == "nt":
-                    # for windows
-                    os.system('start ' + url)
-                else:
-                    if os.uname()[0] == "Linux":
-                        # for linux platform
-                        os.system("eog " + url)
-                    else:
-                        # for Mac platform
-                        os.system("open " + url)
+                sys_open(url)
             succed = True
         return succed
 
