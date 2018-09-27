@@ -471,8 +471,7 @@ class JDWrapper(object):
         
         # good stock
         good_data['stock'], good_data['stockName'] = self.good_stock(stock_id=stock_id, area_id=area_id)
-        #stock_str = u'有货' if good_data['stock'] == 33 else u'无货'
-        
+
         print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
         print u'{0} > 商品详情'.format(now())
         print u'编号：{0}'.format(good_data['id'])
@@ -513,19 +512,21 @@ class JDWrapper(object):
     def buy(self, options):
         # stock detail
         good_data = self.good_detail(options.good)
+        # 有货：33；无货：34；有货（在途）：39；预订：36；有货（）：40
+        stock_list = [33, 36, 39, 40]
 
         # retry until stock not empty
-        if good_data['stock'] != 33:
+        if good_data['stock'] not in stock_list:
             # flush stock state
-            while good_data['stock'] != 33 and options.flush:
-                print u'%s: <%s> <%s>' % (now(), good_data['stockName'], good_data['name'])
+            while good_data['stock'] not in stock_list and options.flush:
+                print u'%s: <%s:%s> <%s>' % (now(), good_data['stock'],  good_data['stockName'], good_data['name'])
                 time.sleep(options.wait / 1000.0)
                 good_data['stock'], good_data['stockName'] = self.good_stock(stock_id=options.good, area_id=options.area)
                 
 
         # failed 
         link = good_data['link']
-        if good_data['stock'] != 33 or link == '':
+        if good_data['stock'] not in stock_list or link == '':
             #print u'stock {0}, link {1}'.format(good_data['stock'], link)
             # return False
             pass
