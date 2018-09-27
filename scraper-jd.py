@@ -685,7 +685,7 @@ class JDWrapper(object):
         elif resp.text == 'taxpayer_invalid':
             print u'请填写准确的纳税人识别号或统一社会信用代码'
         elif resp.text.find('koFail') > 0:
-            print u'很抱歉，抢购未成功({0})'.format(resp.text.replace('//', 'http://'))
+            print u'很抱歉，抢购失败：{0}'.format(resp.text.replace('//', 'http://'))
         else:
             url = resp.text.replace('//', 'http://')
             print u'查看抢购结果: {0}'.format(url)
