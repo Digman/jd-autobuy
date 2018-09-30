@@ -231,8 +231,7 @@ class JDWrapper(object):
             urllib.quote(content),
             urllib.quote(url)
         )
-        resp = self.sess.get(api)
-        print resp.text
+        self.sess.get(api)
 
     def checkLogin(self):
 
@@ -837,12 +836,11 @@ class JDWrapper(object):
                     return True
                 else:
                     print u'下单失败！<{0}: {1}>'.format(js['resultCode'], js['message'])
-                    if js['resultCode'] == '60017':
+                    if js['resultCode'] == 60017:
                         # 60017: 您多次提交过快，请稍后再试
                         time.sleep(1)
-                    elif js['resultCode'] == '60123':
+                    elif js['resultCode'] == 60123:
                         # 60123: 请输入支付密码
-                        print u'需要输入支付密码'
                         return True
             else:
                 print u'请求失败. StatusCode:', rp.status_code
