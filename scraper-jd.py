@@ -21,6 +21,7 @@ import json
 import random
 import argparse
 import sys
+import urllib
 
 reload(sys)
 
@@ -217,6 +218,21 @@ class JDWrapper(object):
 
         return False
 
+    def pushNotice(self, title, content, url=''):
+        '''
+        iOS安装BARK应用，通过http接口发送推送通知
+        :param title:
+        :param content:
+        :param url:
+        :return:
+        '''
+        api = "https://api.day.app/neTpjbfp8uFEEW56Mo6aRN/{0}/{1}?url={2}".format(
+            urllib.quote(title),
+            urllib.quote(content),
+            urllib.quote(url)
+        )
+        resp = self.sess.get(api)
+        print resp.text
 
     def checkLogin(self):
 
@@ -534,7 +550,7 @@ class JDWrapper(object):
         try:
             # second kill
             if good_data['ko']:
-                while not self.do_seckill(options) and options.flush:
+                while not self.do_seckill(options, good_data) and options.flush:
                     time.sleep(options.wait / 1000.0)
                 return True
 
@@ -567,7 +583,7 @@ class JDWrapper(object):
             print 'Exp {0} : {1}'.format(FuncName(), e)
         else:
             self.cart_detail()
-            return self.order_info(options.submit)
+            return self.order_info(options.submit, good_data)
 
         return False
 
@@ -608,7 +624,7 @@ class JDWrapper(object):
 
         return False
 
-    def do_seckill(self, options):
+    def do_seckill(self, options, good_data):
         succed = False
         checked = self.check_seckill(options.good)
         if not checked:
@@ -690,6 +706,10 @@ class JDWrapper(object):
             url = resp.text.replace('//', 'http://')
             print u'查看抢购结果: {0}'.format(url)
             if resp.text.find('/success/') > 0:
+                self.pushNotice(
+                    "京东抢购成功",
+                    "{0} 抢购成功，请前往东京官方商城付款。".format(good_data['name']),
+                    url)
                 sys_open(url)
             succed = True
         return succed
@@ -759,7 +779,7 @@ class JDWrapper(object):
             print 'Exp {0} : {1}'.format(FuncName(), e)
 
 
-    def order_info(self, submit=False):
+    def order_info(self, submit=False, good_data=None):
         # get order info detail, and submit order
         print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
         print u'{0} > 订单详情'.format(now())
@@ -809,6 +829,11 @@ class JDWrapper(object):
                 if js['success'] == True:
                     print u'下单成功！订单号：{0}'.format(js['orderId'])
                     print u'请前往东京官方商城付款'
+                    self.pushNotice(
+                        "京东下单成功",
+                        "{0} 下单成功，请前往东京官方商城付款。".format(good_data['name']),
+                        "https://order.jd.com"
+                    )
                     return True
                 else:
                     print u'下单失败！<{0}: {1}>'.format(js['resultCode'], js['message'])
