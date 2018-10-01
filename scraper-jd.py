@@ -22,6 +22,7 @@ import random
 import argparse
 import sys
 import urllib
+import logging
 
 reload(sys)
 
@@ -29,6 +30,19 @@ sys.setdefaultencoding('utf-8')
 
 # get function name
 FuncName = lambda n=0: sys._getframe(n + 1).f_code.co_name
+
+# log setting
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+
+fh = logging.FileHandler("logs/debug_{0}.log".format(time.strftime('%Y%m%d%H', time.localtime(time.time()))))
+fh.setFormatter(logging.Formatter("%(asctime)s - %(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s"))
+logger.addHandler(fh)
+
+ch = logging.StreamHandler(sys.stdout)
+ch.setFormatter(logging.Formatter("%(asctime)s.%(msecs)03d: %(message)s", '%H:%M:%S'))
+ch.setLevel(logging.INFO)
+logger.addHandler(ch)
 
 
 def tags_val(tag, key='', index=0):
@@ -148,7 +162,7 @@ class JDWrapper(object):
     @staticmethod
     def response_status(resp):
         if resp.status_code != requests.codes.OK:
-            print 'Status: %u, Url: %s' % (resp.status_code, resp.url)
+            logger.debug(u'Status: %u, Url: %s', resp.status_code, resp.url)
             return False
         return True
 
@@ -168,7 +182,7 @@ class JDWrapper(object):
             js = json.loads(resp.text[1:-1])
             return js['verifycode']
 
-        print u'获取是否需要验证码失败'
+        logger.warning(u'获取是否需要验证码失败')
         return False
 
     def _get_auth_code(self, uuid):
@@ -185,7 +199,7 @@ class JDWrapper(object):
         # get auth code
         r = self.sess.get(self.imag, params=payload)
         if not self.response_status(r):
-            print u'获取验证码失败'
+            logger.warning(u'获取验证码失败')
             return False
 
         with open (image_file, 'wb') as f:
@@ -231,37 +245,36 @@ class JDWrapper(object):
             urllib.quote(content),
             urllib.quote(url)
         )
-        self.sess.get(api)
+        resp = self.sess.get(api)
+        logger.debug(u'notice push result: %s', resp.text)
 
     def checkLogin(self):
-
         try:
-            print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
-            print u'{0} > 自动登录中... '.format(now())
+            logger.info('+++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+            logger.info(u'自动登录中...')
             with open('cookie', 'rb') as f:
                 self.cookies = requests.utils.cookiejar_from_dict(pickle.load(f))
                 resp = requests.get(self.checkUrl, cookies=self.cookies)
                 if resp.status_code != requests.codes.OK:
-                    print u'登录过期， 请重新登录！'
+                    logger.warning(u'登录过期， 请重新登录！')
                     return False
                 else:
                     return True
-
-            return False
-        except Exception as e:
-            return False
-        else:
+        except KeyError as e:
+            logger.debug(e, exc_info=True)
             pass
+        except Exception as e:
+            logger.error(u'Exception: %s', e.message)
+            logger.debug(e, exc_info=True)
+            return False
         finally:
             pass
 
-        return False
-    
     def login_by_QR(self):
         # jd login by QR code
         try:
-            print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
-            print u'{0} > 请打开京东手机客户端，准备扫码登陆:'.format(now())
+            logger.info('+++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+            logger.info(u'请打开京东手机客户端，准备扫码登陆:')
 
             urls = (
                 'https://passport.jd.com/new/login.aspx',
@@ -276,7 +289,7 @@ class JDWrapper(object):
                 headers = self.headers
             )
             if resp.status_code != requests.codes.OK:
-                print u'获取登录页失败: %u' % resp.status_code
+                logger.error(u'获取登录页失败: %u' % resp.status_code)
                 return False
 
             ## save cookies
@@ -296,7 +309,7 @@ class JDWrapper(object):
                 }
             )
             if resp.status_code != requests.codes.OK:
-                print u'获取二维码失败: %u' % resp.status_code
+                logger.error(u'获取二维码失败: %u' % resp.status_code)
                 return False
 
             ## save cookies
@@ -316,6 +329,9 @@ class JDWrapper(object):
             ## mush have
             self.headers['Host'] = 'qr.m.jd.com' 
             self.headers['Referer'] = 'https://passport.jd.com/new/login.aspx'
+
+            # push notice
+            self.pushNotice('需要登录', '请打开京东手机客户端进行扫码登陆')
 
             # check if QR code scanned
             qr_ticket = None
@@ -342,15 +358,15 @@ class JDWrapper(object):
                 rs = json.loads(resp.text[n1+1:n2])
 
                 if rs['code'] == 200:
-                    print u'{} : {}'.format(rs['code'], rs['ticket'])
+                    logger.info(u'%s : %s', rs['code'], rs['ticket'])
                     qr_ticket = rs['ticket']
                     break
                 else:
-                    print u'{} : {}'.format(rs['code'], rs['msg'])
+                    logger.info(u'%s : %s', rs['code'], rs['msg'])
                     time.sleep(3)
             
             if not qr_ticket:
-                print u'二维码登陆失败'
+                logger.error(u'二维码登陆失败')
                 return False
             
             # step 4: validate scan result
@@ -364,7 +380,7 @@ class JDWrapper(object):
                 params = {'t' : qr_ticket },
             )
             if resp.status_code != requests.codes.OK:
-                print u'二维码登陆校验失败: %u' % resp.status_code
+                logger.error(u'二维码登陆校验失败: %u', resp.status_code)
                 return False
             
             ## 京东有时候会认为当前登录有危险，需要手动验证
@@ -372,11 +388,11 @@ class JDWrapper(object):
             res = json.loads(resp.text)
             if not resp.headers.get('P3P'):
                 if res.has_key('url'):
-                    print u'需要手动安全验证: {0}'.format(res['url'])
+                    logger.warning(u'需要手动安全验证: %s', res['url'])
                     return False
                 else:
                     self.print_json(res)
-                    print u'登陆失败!!'
+                    logger.error(u'登陆失败!!')
                     return False
             
             ## login succeed
@@ -388,11 +404,16 @@ class JDWrapper(object):
                 pickle.dump(self.cookies, f)
 
             sys_close(image_file)
-            print u'登陆成功'
+
+            # clean
+            del self.headers['P3P'], self.headers['Referer'], self.headers['Host']
+
+            logger.info(u'登陆成功')
             return True
         
         except Exception as e:
-            print 'Exp:', e
+            logger.error(u'Exception: %s', e.message)
+            logger.debug(e, exc_info=True)
             raise
 
         return False
@@ -422,7 +443,7 @@ class JDWrapper(object):
             # get stock state
             resp = self.sess.get(stock_url, params=payload)
             if not self.response_status(resp):
-                print u'获取商品库存失败'
+                logger.warning(u'获取商品库存失败')
                 return (0, '')
             
             # return json
@@ -435,7 +456,8 @@ class JDWrapper(object):
             return stock_stat, stock_stat_name
 
         except Exception as e:
-            print 'Stocks Exception:', e
+            logger.error(u'Exception: %s', e.message)
+            logger.debug(e, exc_info=True)
             time.sleep(5)
 
         return (0, '')
@@ -479,7 +501,8 @@ class JDWrapper(object):
             good_data['link'] = link
         
         except Exception, e:
-            print 'Exp {0} : {1}'.format(FuncName(), e)
+            logger.error(u'Exception: %s', e.message)
+            logger.debug(e, exc_info=True)
 
         # good price
         good_data['price'] = self.good_price(stock_id)
@@ -487,15 +510,14 @@ class JDWrapper(object):
         # good stock
         good_data['stock'], good_data['stockName'] = self.good_stock(stock_id=stock_id, area_id=area_id)
 
-        print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
-        print u'{0} > 商品详情'.format(now())
-        print u'编号：{0}'.format(good_data['id'])
-        print u'库存：{0}'.format(good_data['stockName'])
-        print u'价格：{0}'.format(good_data['price'])
-        print u'名称：{0}'.format(good_data['name'])
-        print u'抢购：{0}'.format(u'是' if good_data['ko'] else u'否')
-        #print u'链接：{0}'.format(good_data['link'])
-        
+        logger.info('+++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+        logger.info(u'商品详情>')
+        logger.info(u'编号：%s', good_data['id'])
+        logger.info(u'库存：%s', good_data['stockName'])
+        logger.info(u'价格：%s', good_data['price'])
+        logger.info(u'名称：%s', good_data['name'])
+        logger.info(u'抢购：%s', u'是' if good_data['ko'] else u'否')
+
         return good_data
         
 
@@ -519,10 +541,11 @@ class JDWrapper(object):
             price = js.get('p')
 
         except Exception, e:
-            print 'Exp {0} : {1}'.format(FuncName(), e)
+            logger.error(u'Exception: %s', e.message)
+            logger.debug(e, exc_info=True)
 
         return price
-    
+
 
     def buy(self, options):
         # stock detail
@@ -534,7 +557,7 @@ class JDWrapper(object):
         if good_data['stock'] not in stock_list:
             # flush stock state
             while good_data['stock'] not in stock_list and options.flush:
-                print u'%s: <%s:%s> <%s>' % (now(), good_data['stock'],  good_data['stockName'], good_data['name'])
+                logger.info(u'<%s:%s> <%s>', good_data['stock'], good_data['stockName'], good_data['name'])
                 time.sleep(options.wait / 1000.0)
                 good_data['stock'], good_data['stockName'] = self.good_stock(stock_id=options.good, area_id=options.area)
                 
@@ -569,19 +592,20 @@ class JDWrapper(object):
                 tag = soup.select('div.p-name a')
 
             if tag is None or len(tag) == 0:
-                print u'添加到购物车失败'
+                logger.warning(u'添加到购物车失败')
                 return False
             
-            print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
-            print u'{0} > 购买详情'.format(now())
-            print u'链接：{0}'.format(link)
-            print u'结果：{0}'.format(tags_val(tag))
+            logger.info('+++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+            logger.info(u'购买详情>')
+            logger.info(u'链接：%s', link)
+            logger.info(u'结果：%s', tags_val(tag))
 
             # change count after add to shopping cart
             #self.buy_good_count(options.good, options.count)
             
         except Exception, e:
-            print 'Exp {0} : {1}'.format(FuncName(), e)
+            logger.error(u'Exception: %s', e.message)
+            logger.debug(e, exc_info=True)
         else:
             self.cart_detail()
             return self.order_info(options.submit, good_data)
@@ -603,38 +627,48 @@ class JDWrapper(object):
         return {}
 
     def check_seckill(self, good_id):
-        # get seckill url
-        rs = self.sess.get(
-            self.itemko.format(good_id),
-            headers=self.headers,
-            cookies=self.cookies,
-        )
-        if rs.status_code == 200:
-            url = json.loads(rs.text[1:-2])['url']
-            if not url:
-                return False
-            # fetch seckill content
+        try:
+            # get seckill url
             rs = self.sess.get(
-                'http:' + url,
+                self.itemko.format(good_id),
                 headers=self.headers,
                 cookies=self.cookies,
             )
-            hasbtn = rs.text.find('id="order-submit"') > 0
-            if hasbtn:
-                return True
-
+            if rs.status_code == 200:
+                url = json.loads(rs.text[1:-2])['url']
+                if not url:
+                    return False
+                # fetch seckill content
+                rs = self.sess.get(
+                    'http:' + url,
+                    headers=self.headers,
+                    cookies=self.cookies,
+                )
+                hasbtn = rs.text.find('id="order-submit"') > 0
+                if hasbtn:
+                    return True
+                else:
+                    login = rs.text.find('class="login-form"') > 0
+                    if login:
+                        logger.warning(u'需要重新登录')
+                        self.login_by_QR()
+                    else:
+                        logger.warning(u'获取抢购页面失败(200)')
+            else:
+                logger.warning(u'获取抢购页面失败(%d)', rs.status_code)
+        except Exception:
+            raise
         return False
 
     def do_seckill(self, options, good_data):
         succed = False
         checked = self.check_seckill(options.good)
         if not checked:
-            print u'获取抢购页面失败'
             return succed
 
         address = self.get_address(options.good)
         if not address:
-            print u'获取常用地址失败'
+            logger.warning(u'获取常用地址失败')
             return succed
 
         payload = {
@@ -669,17 +703,14 @@ class JDWrapper(object):
             'yuyue': '',
             'yuyueAddress': '0'
         }
-        print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
-        print u'{0} > 订单信息'.format(now())
-        print u'收货人：{0} {1}'.format(
-            address['name'],
-            address['mobileWithXing']
-        )
-        print u'寄送至：{0}{1}{2}{3}'.format(
-            address['provinceName'],
-            address['cityName'],
-            address['countyName'],
-            address['addressDetail']
+        logger.info('+++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+        logger.info(u'订单信息>')
+        logger.info(u'收货人：%s %s', address['name'], address['mobileWithXing'] )
+        logger.info(u'寄送至：%s%s%s%s',
+                    address['provinceName'],
+                    address['cityName'],
+                    address['countyName'],
+                    address['addressDetail']
         )
 
         if not options.submit:
@@ -692,20 +723,20 @@ class JDWrapper(object):
             cookies=self.cookies
         )
         if resp.status_code != 200:
-            print u'提交抢购失败，StatusCode={0}'.format(resp.status_code)
+            logger.warning(u'提交抢购失败，StatusCode=%d', resp.status_code)
             return succed
 
-        print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
-        print u'{0} > 抢购结果'.format(now())
+        logger.info('+++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+        logger.info(u'抢购结果>')
         if resp.text == 'price_Expire':
-            print u'您所抢购的商品优惠时间已过，请刷新重新提交订单'
+            logger.warning(u'抢购失败：您所抢购的商品优惠时间已过，请刷新重新提交订单')
         elif resp.text == 'taxpayer_invalid':
-            print u'请填写准确的纳税人识别号或统一社会信用代码'
+            logger.warning(u'抢购失败：请填写准确的纳税人识别号或统一社会信用代码')
         elif resp.text.find('koFail') > 0:
-            print u'很抱歉，抢购失败：{0}'.format(resp.text.replace('//', 'http://'))
+            logger.warning(u'抢购失败：%s', resp.text.replace('//', 'http://'))
         else:
             url = resp.text.replace('//', 'http://')
-            print u'查看抢购结果: {0}'.format(url)
+            logger.info(u'查看抢购结果：%s', url)
             if resp.text.find('/success/') > 0:
                 self.pushNotice(
                     "京东抢购成功",
@@ -735,13 +766,14 @@ class JDWrapper(object):
             if rs.status_code == 200:
                 js = json.loads(rs.text)
                 if js.get('pcount'):
-                    print u'数量：%s @ %s' % (js['pcount'], js['pid'])
+                    logger.info(u'数量：%s @ %s', js['pcount'], js['pid'])
                     return True
             else:
-                print u'购买 %d 失败' % count
+                logger.warning(u'购买 %d 失败', count)
                 
         except Exception, e:
-            print 'Exp {0} : {1}'.format(FuncName(), e)
+            logger.error(u'Exception: %s', e.message)
+            logger.debug(e, exc_info=True)
 
         return False
 
@@ -757,10 +789,10 @@ class JDWrapper(object):
             resp.encoding = 'utf-8'
             soup = bs4.BeautifulSoup(resp.text, "html.parser")
             
-            print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
-            print u'{0} > 购物车明细'.format(now())
-            print cart_header
-            
+            logger.info('+++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+            logger.info(u'购物车明细>')
+            logger.info(cart_header)
+
             for item in soup.select('div.item-form'):
                 check = tags_val(item.select('div.cart-checkbox input'), key='checked')
                 check = ' + ' if check else ' - '
@@ -769,21 +801,22 @@ class JDWrapper(object):
                 sums  = tags_val(item.select('div.p-sum strong'))
                 gname = tags_val(item.select('div.p-name a'))
                 #: ￥字符解析出错, 输出忽略￥
-                print cart_format.format(check, count, price[1:], sums[1:], gname)
+                logger.info(cart_format, check, count, price[1:], sums[1:], gname)
 
             t_count = tags_val(soup.select('div.amount-sum em'))
             t_value = tags_val(soup.select('span.sumPrice em'))
-            print u'总数: {0}'.format(t_count)
-            print u'总额: {0}'.format(t_value[1:])
+            logger.info(u'总数: %s', t_count)
+            logger.info(u'总额: %s', t_value[1:])
 
         except Exception, e:
-            print 'Exp {0} : {1}'.format(FuncName(), e)
+            logger.error(u'Exception: %s', e.message)
+            logger.debug(e, exc_info=True)
 
 
     def order_info(self, submit=False, good_data=None):
         # get order info detail, and submit order
-        print '+++++++++++++++++++++++++++++++++++++++++++++++++++++++'
-        print u'{0} > 订单详情'.format(now())
+        logger.info('+++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+        logger.info(u'订单详情>')
 
         try:
             order_url = 'http://trade.jd.com/shopping/order/getOrderInfo.action'
@@ -803,9 +836,9 @@ class JDWrapper(object):
                 snd_usr = tag_val(detail.find(id='sendMobile'))
                 snd_add = tag_val(detail.find(id='sendAddr'))
 
-                print u'应付款：{0}'.format(payment)
-                print snd_usr
-                print snd_add
+                logger.info(u'应付款：%s', payment)
+                logger.info(snd_usr)
+                logger.info(snd_add)
 
             # just test, not real order
             if not submit:
@@ -828,8 +861,8 @@ class JDWrapper(object):
             if rp.status_code == 200:
                 js = json.loads(rp.text)
                 if js['success'] == True:
-                    print u'下单成功！订单号：{0}'.format(js['orderId'])
-                    print u'请前往东京官方商城付款'
+                    logger.info(u'下单成功！订单号：%s', js['orderId'])
+                    logger.info(u'请前往东京官方商城付款')
                     self.pushNotice(
                         "京东下单成功",
                         "{0} 下单成功，请前往东京官方商城付款。".format(good_data['name']),
@@ -837,7 +870,7 @@ class JDWrapper(object):
                     )
                     return True
                 else:
-                    print u'下单失败！<{0}: {1}>'.format(js['resultCode'], js['message'])
+                    logger.info(u'下单失败！%d: %s', js['resultCode'], js['message'])
                     if js['resultCode'] == 60017:
                         # 60017: 您多次提交过快，请稍后再试
                         time.sleep(1)
@@ -845,16 +878,17 @@ class JDWrapper(object):
                         # 60123: 请输入支付密码
                         return True
             else:
-                print u'请求失败. StatusCode:', rp.status_code
+                logger.warning(u'请求失败. StatusCode:', rp.status_code)
         
         except Exception, e:
-            print 'Exp {0} : {1}'.format(FuncName(), e)
+            logger.error(u'Exception: %s', e.message)
+            logger.debug(e, exc_info=True)
 
         return False
 
 
 def main(options):
-    # 
+    #
     jd = JDWrapper()
     if not jd.checkLogin() or options.relogin:
         if not jd.login_by_QR():
@@ -900,5 +934,5 @@ if __name__ == '__main__':
         main(options)
 
     except KeyboardInterrupt:
-        print('Interrupted')
+        logger.warning('Interrupted')
         sys.exit(0)
