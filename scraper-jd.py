@@ -260,11 +260,7 @@ class JDWrapper(object):
                     return False
                 else:
                     return True
-        except KeyError as e:
-            logger.debug(e, exc_info=True)
-            pass
         except Exception as e:
-            logger.error(u'Exception: %s', e.message)
             logger.debug(e, exc_info=True)
             return False
         finally:
@@ -407,6 +403,9 @@ class JDWrapper(object):
 
             # clean
             del self.headers['P3P'], self.headers['Referer'], self.headers['Host']
+
+            # push notice
+            self.pushNotice('登录成功', '通过京东客户端扫描登录成功')
 
             logger.info(u'登陆成功')
             return True
