@@ -549,7 +549,9 @@ class JDWrapper(object):
         try:
             # second kill
             if good_data['ko']:
-                while not self.do_seckill(options, good_data) and options.flush:
+                retrys = 50
+                while retrys and not self.do_seckill(options, good_data) and options.flush:
+                    retrys -= 1
                     time.sleep(options.wait / 1000.0)
                 return True
 
