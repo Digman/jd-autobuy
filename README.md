@@ -51,6 +51,7 @@ optional arguments:
   -w WAIT, --wait WAIT  Flush time interval, unit MS
   -f, --flush           Continue flash if good out of stock
   -s, --submit          Submit the order to Jing Dong
+  -r, --relogin         Force relogin
 ```
 
 ## 实例输出
