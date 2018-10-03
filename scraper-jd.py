@@ -166,88 +166,6 @@ class JDWrapper(object):
             return False
         return True
 
-    def _need_auth_code(self, usr_name):
-        # check if need auth code
-        # 
-        auth_dat = {
-            'loginName': usr_name,
-        }
-        payload = {
-            'r' : random.random(),
-            'version' : 2015
-        }
-        
-        resp = self.sess.post(self.auth, data=auth_dat, params=payload)
-        if self.response_status(resp) : 
-            js = json.loads(resp.text[1:-1])
-            return js['verifycode']
-
-        logger.warning(u'获取是否需要验证码失败')
-        return False
-
-    def _get_auth_code(self, uuid):
-        # image save path
-        image_file = os.path.join(os.getcwd(), 'authcode.jfif')
-            
-        payload = {
-            'a' : 1,
-            'acid' : uuid,
-            'uid' : uuid,
-            'yys' : str(int(time.time() * 1000)),
-        }
-            
-        # get auth code
-        r = self.sess.get(self.imag, params=payload)
-        if not self.response_status(r):
-            logger.warning(u'获取验证码失败')
-            return False
-
-        with open (image_file, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=1024):
-                f.write(chunk)
-                        
-            f.close()
-        
-        os.system('start ' + image_file)
-        return str(raw_input('Auth Code: '))
-
-    def _login_once(self, login_data):
-        # url parameter
-        payload = {
-            'r': random.random(),
-            'uuid' : login_data['uuid'],
-            'version' : 2015,
-        }
-        
-        resp = self.sess.post(self.login, data=login_data, params=payload)
-        if self.response_status(resp):
-            js = json.loads(resp.text[1:-1])
-            #self.print_json(resp.text)
-            
-            if not js.get('success') :
-                print  js.get('emptyAuthcode')
-                return False
-            else:
-                return True
-
-        return False
-
-    def pushNotice(self, title, content, url=''):
-        '''
-        iOS安装BARK应用，通过http接口发送推送通知
-        :param title:
-        :param content:
-        :param url:
-        :return:
-        '''
-        api = "https://api.day.app/neTpjbfp8uFEEW56Mo6aRN/{0}/{1}?url={2}".format(
-            urllib.quote(title),
-            urllib.quote(content),
-            urllib.quote(url)
-        )
-        resp = self.sess.get(api)
-        logger.debug(u'notice push result: %s', resp.text)
-
     def checkLogin(self):
         try:
             logger.info('+++++++++++++++++++++++++++++++++++++++++++++++++++++++')
@@ -326,9 +244,6 @@ class JDWrapper(object):
             self.headers['Host'] = 'qr.m.jd.com' 
             self.headers['Referer'] = 'https://passport.jd.com/new/login.aspx'
 
-            # push notice
-            self.pushNotice('需要登录', '请打开京东手机客户端进行扫码登陆')
-
             # check if QR code scanned
             qr_ticket = None
             retry_times = 100
@@ -366,7 +281,7 @@ class JDWrapper(object):
                 return False
             
             # step 4: validate scan result
-            ## must have
+            # must have
             self.headers['Host'] = 'passport.jd.com'
             self.headers['Referer'] = 'https://passport.jd.com/uc/login?ltype=logout'
             resp = self.sess.get(
@@ -379,8 +294,8 @@ class JDWrapper(object):
                 logger.error(u'二维码登陆校验失败: %u', resp.status_code)
                 return False
             
-            ## 京东有时候会认为当前登录有危险，需要手动验证
-            ## url: https://safe.jd.com/dangerousVerify/index.action?username=...
+            # 京东有时候会认为当前登录有危险，需要手动验证
+            # url: https://safe.jd.com/dangerousVerify/index.action?username=...
             res = json.loads(resp.text)
             if not resp.headers.get('P3P'):
                 if res.has_key('url'):
@@ -391,7 +306,7 @@ class JDWrapper(object):
                     logger.error(u'登陆失败!!')
                     return False
             
-            ## login succeed
+            # login succeed
             self.headers['P3P'] = resp.headers.get('P3P')
             for k, v in resp.cookies.items():
                 self.cookies[k] = v
@@ -401,11 +316,8 @@ class JDWrapper(object):
 
             sys_close(image_file)
 
-            # clean
+            # clean headers
             del self.headers['P3P'], self.headers['Referer'], self.headers['Host']
-
-            # push notice
-            self.pushNotice('登录成功', '通过京东客户端扫描登录成功')
 
             logger.info(u'登陆成功')
             return True
@@ -417,7 +329,6 @@ class JDWrapper(object):
 
         return False
 
-    
     def good_stock(self, stock_id, good_count=1, area_id=None):
         '''
         33 : on sale, 
@@ -461,7 +372,6 @@ class JDWrapper(object):
 
         return (0, '')
 
-    
     def good_detail(self, stock_id, area_id=None):
         # return good detail
         good_data = {
@@ -519,7 +429,6 @@ class JDWrapper(object):
 
         return good_data
         
-
     def good_price(self, stock_id):
         # get good price
         url = 'http://p.3.cn/prices/mgets'
@@ -544,7 +453,6 @@ class JDWrapper(object):
             logger.debug(e, exc_info=True)
 
         return price
-
 
     def buy(self, options):
         # stock detail
@@ -737,10 +645,6 @@ class JDWrapper(object):
             url = resp.text.replace('//', 'http://')
             logger.info(u'查看抢购结果：%s', url)
             if resp.text.find('/success/') > 0:
-                self.pushNotice(
-                    "京东抢购成功",
-                    "{0} 抢购成功，请前往东京官方商城付款。".format(good_data['name']),
-                    url)
                 sys_open(url)
             succed = True
         return succed
@@ -776,7 +680,6 @@ class JDWrapper(object):
 
         return False
 
-        
     def cart_detail(self):
         # list all goods detail in cart
         cart_url = 'https://cart.jd.com/cart.action'
@@ -810,7 +713,6 @@ class JDWrapper(object):
         except Exception, e:
             logger.error(u'Exception: %s', e.message)
             logger.debug(e, exc_info=True)
-
 
     def order_info(self, submit=False, good_data=None):
         # get order info detail, and submit order
@@ -862,11 +764,6 @@ class JDWrapper(object):
                 if js['success'] == True:
                     logger.info(u'下单成功！订单号：%s', js['orderId'])
                     logger.info(u'请前往东京官方商城付款')
-                    self.pushNotice(
-                        "京东下单成功",
-                        "{0} 下单成功，请前往东京官方商城付款。".format(good_data['name']),
-                        "https://order.jd.com"
-                    )
                     return True
                 else:
                     logger.info(u'下单失败！%d: %s', js['resultCode'], js['message'])
